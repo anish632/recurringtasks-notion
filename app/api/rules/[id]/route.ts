@@ -4,7 +4,7 @@ import { calculateNextRun } from '@/lib/scheduler';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = request.cookies.get('user_id')?.value;
@@ -13,6 +13,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const body = await request.json();
     const updates: any = {};
 
@@ -29,7 +30,7 @@ export async function PATCH(
       } as any);
     }
 
-    const rule = await db.updateRule(params.id, updates);
+    const rule = await db.updateRule(id, updates);
 
     return NextResponse.json({ rule });
   } catch (error) {
@@ -43,7 +44,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = request.cookies.get('user_id')?.value;
@@ -52,7 +53,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await db.deleteRule(params.id);
+    const { id } = await params;
+    await db.deleteRule(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

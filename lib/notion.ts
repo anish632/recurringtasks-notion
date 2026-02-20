@@ -10,15 +10,17 @@ export async function getUserDatabases(accessToken: string): Promise<NotionDatab
   
   try {
     const response = await notion.search({
-      filter: { property: 'object', value: 'database' },
+      filter: { property: 'object', value: 'database' } as any,
       page_size: 100,
     });
 
-    return response.results.map((db: any) => ({
-      id: db.id,
-      name: db.title?.[0]?.plain_text || 'Untitled',
-      url: db.url,
-    }));
+    return response.results
+      .filter((item: any) => item.object === 'database')
+      .map((db: any) => ({
+        id: db.id,
+        name: db.title?.[0]?.plain_text || 'Untitled',
+        url: db.url,
+      }));
   } catch (error) {
     console.error('Error fetching databases:', error);
     throw error;
@@ -41,7 +43,7 @@ export async function queryDatabase(accessToken: string, databaseId: string) {
   const notion = createNotionClient(accessToken);
   
   try {
-    const response = await notion.databases.query({ database_id: databaseId });
+    const response = await (notion.databases as any).query({ database_id: databaseId });
     return response.results;
   } catch (error) {
     console.error('Error querying database:', error);
