@@ -36,22 +36,44 @@ export async function POST(request: NextRequest) {
               rule.database_id
             );
           } else {
-            // Create a basic page with title
+            // Create a basic page with title and default status
             const now = new Date();
+            const properties: Record<string, any> = {
+              Name: {
+                title: [
+                  {
+                    text: {
+                      content: `${rule.database_name || 'Task'} - ${now.toLocaleDateString()}`,
+                    },
+                  },
+                ],
+              },
+            };
+
+            // Try to set Status to "To Do" if the database has a status property
+            try {
+              const { getDatabase } = await import('@/lib/notion');
+              const dbInfo: any = await getDatabase(user.notion_access_token, rule.database_id);
+              const statusProp = Object.entries(dbInfo.properties).find(
+                ([, v]: [string, any]) => v.type === 'select' || v.type === 'status'
+              );
+              if (statusProp) {
+                const [propName, propVal]: [string, any] = statusProp;
+                const firstOption = propVal.select?.options?.[0]?.name || propVal.status?.options?.[0]?.name;
+                if (firstOption) {
+                  properties[propName] = propVal.type === 'status'
+                    ? { status: { name: firstOption } }
+                    : { select: { name: firstOption } };
+                }
+              }
+            } catch {
+              // Ignore — just create without status
+            }
+
             pageId = await createPage(
               user.notion_access_token,
               rule.database_id,
-              {
-                Name: {
-                  title: [
-                    {
-                      text: {
-                        content: `Task - ${now.toLocaleDateString()}`,
-                      },
-                    },
-                  ],
-                },
-              }
+              properties
             );
           }
 
