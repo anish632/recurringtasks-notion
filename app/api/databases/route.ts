@@ -19,10 +19,10 @@ export async function GET(request: NextRequest) {
     const databases = await getUserDatabases(user.notion_access_token);
 
     return NextResponse.json({ databases });
-  } catch (error) {
-    console.error('Error fetching databases:', error);
+  } catch (error: any) {
+    console.error('Error fetching databases:', error?.message || error);
     return NextResponse.json(
-      { error: 'Failed to fetch databases' },
+      { error: 'Failed to fetch databases', detail: error?.message },
       { status: 500 }
     );
   }
