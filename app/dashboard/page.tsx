@@ -37,19 +37,29 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    Promise.all([fetchRules(), fetchDatabases(), fetchUser()])
-      .catch(() => setError('Failed to load dashboard data'));
+    fetchUser()
+      .then((authed) => {
+        if (!authed) return;
+        return Promise.all([fetchRules(), fetchDatabases()]);
+      })
+      .catch(() => setError('Failed to load dashboard data'))
+      .finally(() => setLoading(false));
   }, []);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
   };
 
-  const fetchUser = async () => {
+  const fetchUser = async (): Promise<boolean> => {
     const res = await fetch('/api/user');
-    if (!res.ok) return;
+    if (res.status === 401) {
+      window.location.href = '/api/auth/notion';
+      return false;
+    }
+    if (!res.ok) throw new Error('Failed to fetch user');
     const data = await res.json();
     setSubscriptionTier(data.subscription_tier || 'free');
+    return true;
   };
 
   const handleUpgrade = async () => {
@@ -159,11 +169,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loading && !error) {
-    Promise.all([fetchRules(), fetchDatabases(), fetchUser()])
-      .catch(() => setError('Failed to load dashboard data'))
-      .finally(() => setLoading(false));
-
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
