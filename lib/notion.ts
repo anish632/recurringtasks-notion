@@ -10,12 +10,12 @@ export async function getUserDatabases(accessToken: string): Promise<NotionDatab
   
   try {
     const response = await notion.search({
-      filter: { property: 'object', value: 'data_source' } as any,
+      filter: { property: 'object', value: 'database' } as any,
       page_size: 100,
     });
 
     return response.results
-      .filter((item: any) => item.object === 'database' || item.object === 'data_source')
+      .filter((item: any) => item.object === 'database')
       .map((db: any) => ({
         id: db.id,
         name: db.title?.[0]?.plain_text || 'Untitled',

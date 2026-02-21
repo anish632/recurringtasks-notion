@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { calculateNextRun } from '@/lib/scheduler';
+import { getDatabase } from '@/lib/notion';
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest) {
     if (!database_id || !schedule_type || !schedule_value) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Validate the database is accessible before saving
+    try {
+      await getDatabase(user.notion_access_token, database_id);
+    } catch {
+      return NextResponse.json(
+        { error: 'Cannot access that Notion database. Make sure it is shared with the RecurringTasks integration.' },
         { status: 400 }
       );
     }
