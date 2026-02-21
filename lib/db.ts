@@ -3,9 +3,7 @@ import { User, RecurringRule, TaskHistory } from './types';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true }
-    : { rejectUnauthorized: false },
+  ssl: { rejectUnauthorized: false },
 });
 
 const ALLOWED_USER_FIELDS = new Set([
