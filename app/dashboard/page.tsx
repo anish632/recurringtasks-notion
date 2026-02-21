@@ -9,6 +9,8 @@ export default function Dashboard() {
   const [databases, setDatabases] = useState<NotionDatabase[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
+  const [upgrading, setUpgrading] = useState(false);
   const [newRule, setNewRule] = useState({
     database_id: '',
     database_name: '',
@@ -19,7 +21,39 @@ export default function Dashboard() {
   useEffect(() => {
     fetchRules();
     fetchDatabases();
+    fetchUser();
   }, []);
+
+  const fetchUser = async () => {
+    try {
+      const res = await fetch('/api/user');
+      const data = await res.json();
+      setSubscriptionTier(data.subscription_tier || 'free');
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    setUpgrading(true);
+    try {
+      const res = await fetch('/api/billing/checkout', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Failed to create checkout session');
+      }
+    } catch (error) {
+      console.error('Error creating checkout:', error);
+      alert('Failed to create checkout session');
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const isFreeTier = subscriptionTier === 'free';
+  const atRuleLimit = isFreeTier && rules.length >= 3;
 
   const fetchRules = async () => {
     try {
@@ -109,19 +143,53 @@ export default function Dashboard() {
       <header className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">RecurringTasks Dashboard</h1>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-            >
-              + New Rule
-            </button>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">RecurringTasks Dashboard</h1>
+              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                isFreeTier ? 'bg-gray-200 text-gray-700' : 'bg-purple-100 text-purple-700'
+              }`}>
+                {isFreeTier ? 'Free' : 'Pro'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              {isFreeTier && (
+                <button
+                  onClick={handleUpgrade}
+                  disabled={upgrading}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
+                >
+                  {upgrading ? 'Loading...' : '⚡ Upgrade to Pro'}
+                </button>
+              )}
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                + New Rule
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
+        {atRuleLimit && (
+          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
+            <div>
+              <p className="font-semibold text-purple-900">You&apos;ve reached the free plan limit (3 rules)</p>
+              <p className="text-sm text-purple-700">Upgrade to Pro for unlimited recurring rules.</p>
+            </div>
+            <button
+              onClick={handleUpgrade}
+              disabled={upgrading}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap"
+            >
+              {upgrading ? 'Loading...' : '⚡ Upgrade to Pro'}
+            </button>
+          </div>
+        )}
+
         {rules.length === 0 ? (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">📋</div>
