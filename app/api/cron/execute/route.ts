@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { createPage, duplicatePageToDatabase } from '@/lib/notion';
+import { createPage, duplicatePageToDatabase, getDatabase } from '@/lib/notion';
 import { calculateNextRun } from '@/lib/scheduler';
 
 export async function POST(request: NextRequest) {
@@ -50,24 +50,29 @@ export async function POST(request: NextRequest) {
               },
             };
 
-            // Try to set Status to "To Do" if the database has a status property
+            // Set default status so tasks appear in board view
             try {
-              const { getDatabase } = await import('@/lib/notion');
               const dbInfo: any = await getDatabase(user.notion_access_token, rule.database_id);
-              const statusProp = Object.entries(dbInfo.properties).find(
-                ([, v]: [string, any]) => v.type === 'select' || v.type === 'status'
-              );
-              if (statusProp) {
-                const [propName, propVal]: [string, any] = statusProp;
-                const firstOption = propVal.select?.options?.[0]?.name || propVal.status?.options?.[0]?.name;
-                if (firstOption) {
-                  properties[propName] = propVal.type === 'status'
-                    ? { status: { name: firstOption } }
-                    : { select: { name: firstOption } };
+              for (const [propName, propVal] of Object.entries(dbInfo.properties) as [string, any][]) {
+                if (propVal.type === 'status') {
+                  const groups = propVal.status?.groups || [];
+                  const todoGroup = groups.find((g: any) => g.name === 'To-do') || groups[0];
+                  const optionId = todoGroup?.option_ids?.[0];
+                  const option = propVal.status?.options?.find((o: any) => o.id === optionId) || propVal.status?.options?.[0];
+                  if (option) {
+                    properties[propName] = { status: { name: option.name } };
+                  }
+                  break;
+                } else if (propVal.type === 'select' && propName.toLowerCase().includes('status')) {
+                  const firstOption = propVal.select?.options?.[0]?.name;
+                  if (firstOption) {
+                    properties[propName] = { select: { name: firstOption } };
+                  }
+                  break;
                 }
               }
-            } catch {
-              // Ignore — just create without status
+            } catch (e) {
+              console.error('Failed to set default status:', e);
             }
 
             pageId = await createPage(
