@@ -57,10 +57,11 @@ export async function GET(request: NextRequest) {
     });
 
     return response;
-  } catch (error) {
-    console.error('OAuth error:', error);
+  } catch (error: any) {
+    console.error('OAuth error:', error?.message || error);
+    const errorMsg = encodeURIComponent(error?.message || 'unknown');
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}?error=oauth_failed`
+      `${process.env.NEXT_PUBLIC_APP_URL}?error=oauth_failed&detail=${errorMsg}`
     );
   }
 }
