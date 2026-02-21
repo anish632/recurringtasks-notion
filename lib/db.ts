@@ -3,8 +3,20 @@ import { User, RecurringRule, TaskHistory } from './types';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: true }
+    : { rejectUnauthorized: false },
 });
+
+const ALLOWED_USER_FIELDS = new Set([
+  'notion_access_token', 'notion_bot_id', 'notion_workspace_id',
+  'notion_workspace_name', 'email', 'subscription_tier',
+]);
+
+const ALLOWED_RULE_FIELDS = new Set([
+  'database_id', 'database_name', 'template_page_id',
+  'schedule_type', 'schedule_value', 'next_run', 'last_run', 'is_active',
+]);
 
 export const db = {
   // Users
@@ -34,25 +46,27 @@ export const db = {
     return rows[0] || null;
   },
 
-  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+  async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
     const setClauses: string[] = [];
     const values: any[] = [];
     let i = 1;
 
     for (const [key, value] of Object.entries(updates)) {
-      if (key !== 'id' && key !== 'created_at') {
-        setClauses.push(`${key} = $${i}`);
-        values.push(value);
-        i++;
-      }
+      if (!ALLOWED_USER_FIELDS.has(key)) continue;
+      setClauses.push(`${key} = $${i}`);
+      values.push(value);
+      i++;
     }
+
+    if (setClauses.length === 0) return this.getUserById(id);
+
     values.push(id);
 
     const { rows } = await pool.query(
       `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${i} RETURNING *`,
       values
     );
-    return rows[0];
+    return rows[0] || null;
   },
 
   // Recurring Rules
@@ -83,25 +97,38 @@ export const db = {
     return rows;
   },
 
-  async getActiveRules(): Promise<RecurringRule[]> {
+  async getRuleById(id: string): Promise<RecurringRule | null> {
     const { rows } = await pool.query(
-      'SELECT * FROM recurring_rules WHERE is_active = true AND next_run <= NOW()'
+      'SELECT * FROM recurring_rules WHERE id = $1',
+      [id]
+    );
+    return rows[0] || null;
+  },
+
+  async getActiveRulesWithUsers(): Promise<(RecurringRule & { notion_access_token: string })[]> {
+    const { rows } = await pool.query(
+      `SELECT r.*, u.notion_access_token
+       FROM recurring_rules r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.is_active = true AND r.next_run <= NOW()`
     );
     return rows;
   },
 
-  async updateRule(id: string, updates: Partial<RecurringRule>): Promise<RecurringRule> {
+  async updateRule(id: string, updates: Partial<RecurringRule>): Promise<RecurringRule | null> {
     const setClauses: string[] = [];
     const values: any[] = [];
     let i = 1;
 
     for (const [key, value] of Object.entries(updates)) {
-      if (key !== 'id' && key !== 'created_at') {
-        setClauses.push(`${key} = $${i}`);
-        values.push(value instanceof Date ? value.toISOString() : value);
-        i++;
-      }
+      if (!ALLOWED_RULE_FIELDS.has(key)) continue;
+      setClauses.push(`${key} = $${i}`);
+      values.push(value instanceof Date ? value.toISOString() : value);
+      i++;
     }
+
+    if (setClauses.length === 0) return this.getRuleById(id);
+
     setClauses.push(`updated_at = NOW()`);
     values.push(id);
 
@@ -109,7 +136,7 @@ export const db = {
       `UPDATE recurring_rules SET ${setClauses.join(', ')} WHERE id = $${i} RETURNING *`,
       values
     );
-    return rows[0];
+    return rows[0] || null;
   },
 
   async deleteRule(id: string): Promise<void> {

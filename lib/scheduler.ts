@@ -1,46 +1,50 @@
-import { addDays, addWeeks, addMonths, parseISO } from 'date-fns';
+import { addDays, addWeeks, addMonths } from 'date-fns';
 import { RecurringRule } from './types';
 
-export function calculateNextRun(rule: RecurringRule): Date {
+const VALID_SCHEDULE_TYPES = ['daily', 'weekly', 'monthly', 'custom'] as const;
+
+export function calculateNextRun(rule: Pick<RecurringRule, 'schedule_type' | 'schedule_value'>): Date {
   const now = new Date();
-  
+
   switch (rule.schedule_type) {
-    case 'daily':
-      return addDays(now, parseInt(rule.schedule_value) || 1);
-    
-    case 'weekly':
-      return addWeeks(now, parseInt(rule.schedule_value) || 1);
-    
-    case 'monthly':
-      return addMonths(now, parseInt(rule.schedule_value) || 1);
-    
+    case 'daily': {
+      const n = parseInt(rule.schedule_value);
+      return addDays(now, (isNaN(n) || n < 1) ? 1 : n);
+    }
+    case 'weekly': {
+      const n = parseInt(rule.schedule_value);
+      return addWeeks(now, (isNaN(n) || n < 1) ? 1 : n);
+    }
+    case 'monthly': {
+      const n = parseInt(rule.schedule_value);
+      return addMonths(now, (isNaN(n) || n < 1) ? 1 : n);
+    }
     case 'custom':
-      // For custom cron, we'll use a simple parser
-      // Format: "0 9 * * 1" (every Monday at 9am)
       return parseCronExpression(rule.schedule_value);
-    
+
     default:
       return addDays(now, 1);
   }
 }
 
 function parseCronExpression(cronExpr: string): Date {
-  // Simple cron parser for common patterns
-  // Format: minute hour day month weekday
-  const parts = cronExpr.split(' ');
-  
+  const parts = cronExpr.trim().split(/\s+/);
+
   if (parts.length !== 5) {
-    // Fallback to daily if invalid
     return addDays(new Date(), 1);
   }
 
-  const [minute, hour, day, month, weekday] = parts;
+  const [minuteStr, hourStr, dayStr, , weekdayStr] = parts;
   const now = new Date();
   let next = new Date(now);
 
-  // Set time if specified
-  if (hour !== '*') {
-    next.setHours(parseInt(hour), parseInt(minute || '0'), 0, 0);
+  // Set time if hour is specified
+  const hour = hourStr !== '*' ? parseInt(hourStr) : NaN;
+  const minute = minuteStr !== '*' ? parseInt(minuteStr) : 0;
+
+  if (!isNaN(hour) && hour >= 0 && hour <= 23) {
+    const min = (!isNaN(minute) && minute >= 0 && minute <= 59) ? minute : 0;
+    next.setHours(hour, min, 0, 0);
   }
 
   // If the time has passed today, move to tomorrow
@@ -49,55 +53,88 @@ function parseCronExpression(cronExpr: string): Date {
   }
 
   // Handle weekly pattern (weekday specified)
-  if (weekday !== '*') {
-    const targetDay = parseInt(weekday);
-    const currentDay = next.getDay();
-    const daysToAdd = (targetDay - currentDay + 7) % 7 || 7;
-    next = addDays(next, daysToAdd);
+  if (weekdayStr !== '*') {
+    const targetDay = parseInt(weekdayStr);
+    if (!isNaN(targetDay) && targetDay >= 0 && targetDay <= 6) {
+      const currentDay = next.getDay();
+      const daysToAdd = (targetDay - currentDay + 7) % 7 || 7;
+      next = addDays(next, daysToAdd);
+    }
   }
 
-  // Handle monthly pattern (day specified)
-  if (day !== '*') {
-    next.setDate(parseInt(day));
-    if (next <= now) {
-      next = addMonths(next, 1);
+  // Handle monthly pattern (day of month specified) — only if weekday is not set
+  if (dayStr !== '*' && weekdayStr === '*') {
+    const targetDate = parseInt(dayStr);
+    if (!isNaN(targetDate) && targetDate >= 1 && targetDate <= 31) {
+      next.setDate(targetDate);
+      if (next <= now) {
+        next = addMonths(next, 1);
+      }
     }
   }
 
   return next;
 }
 
-export function generateScheduleDescription(rule: RecurringRule): string {
+export function generateScheduleDescription(rule: Pick<RecurringRule, 'schedule_type' | 'schedule_value'>): string {
   switch (rule.schedule_type) {
-    case 'daily':
+    case 'daily': {
       const days = parseInt(rule.schedule_value) || 1;
       return days === 1 ? 'Every day' : `Every ${days} days`;
-    
-    case 'weekly':
+    }
+    case 'weekly': {
       const weeks = parseInt(rule.schedule_value) || 1;
       return weeks === 1 ? 'Every week' : `Every ${weeks} weeks`;
-    
-    case 'monthly':
+    }
+    case 'monthly': {
       const months = parseInt(rule.schedule_value) || 1;
       return months === 1 ? 'Every month' : `Every ${months} months`;
-    
+    }
     case 'custom':
       return `Custom: ${rule.schedule_value}`;
-    
+
     default:
       return 'Unknown schedule';
   }
 }
 
+const CRON_RANGES: [number, number][] = [
+  [0, 59],  // minute
+  [0, 23],  // hour
+  [1, 31],  // day of month
+  [1, 12],  // month
+  [0, 6],   // weekday
+];
+
 export function validateCronExpression(cronExpr: string): boolean {
-  const parts = cronExpr.split(' ');
-  
+  const parts = cronExpr.trim().split(/\s+/);
+
   if (parts.length !== 5) return false;
-  
-  // Basic validation - you could make this more robust
-  return parts.every(part => {
+
+  return parts.every((part, i) => {
     if (part === '*') return true;
     const num = parseInt(part);
-    return !isNaN(num) && num >= 0;
+    if (isNaN(num)) return false;
+    const [min, max] = CRON_RANGES[i];
+    return num >= min && num <= max;
   });
+}
+
+export function validateSchedule(scheduleType: string, scheduleValue: string): string | null {
+  if (!VALID_SCHEDULE_TYPES.includes(scheduleType as any)) {
+    return `Invalid schedule type. Must be one of: ${VALID_SCHEDULE_TYPES.join(', ')}`;
+  }
+
+  if (scheduleType === 'custom') {
+    if (!validateCronExpression(scheduleValue)) {
+      return 'Invalid cron expression. Use format: minute hour day month weekday (e.g. "0 9 * * 1")';
+    }
+  } else {
+    const n = parseInt(scheduleValue);
+    if (isNaN(n) || n < 1 || n > 365) {
+      return 'Interval must be a number between 1 and 365';
+    }
+  }
+
+  return null;
 }

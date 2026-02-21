@@ -14,6 +14,13 @@ export async function PATCH(
     }
 
     const { id } = await params;
+
+    // Verify ownership
+    const existing = await db.getRuleById(id);
+    if (!existing || existing.user_id !== userId) {
+      return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+    }
+
     const body = await request.json();
     const updates: any = {};
 
@@ -54,6 +61,13 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // Verify ownership
+    const existing = await db.getRuleById(id);
+    if (!existing || existing.user_id !== userId) {
+      return NextResponse.json({ error: 'Rule not found' }, { status: 404 });
+    }
+
     await db.deleteRule(id);
 
     return NextResponse.json({ success: true });

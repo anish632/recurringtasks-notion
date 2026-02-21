@@ -4,13 +4,31 @@ import { useEffect, useState } from 'react';
 import { RecurringRule, NotionDatabase } from '@/lib/types';
 import { generateScheduleDescription } from '@/lib/scheduler';
 
+function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-white transition-opacity ${
+      type === 'success' ? 'bg-green-600' : 'bg-red-600'
+    }`}>
+      {message}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [databases, setDatabases] = useState<NotionDatabase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string>('free');
   const [upgrading, setUpgrading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [newRule, setNewRule] = useState({
     database_id: '',
     database_name: '',
@@ -19,19 +37,19 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    fetchRules();
-    fetchDatabases();
-    fetchUser();
+    Promise.all([fetchRules(), fetchDatabases(), fetchUser()])
+      .catch(() => setError('Failed to load dashboard data'));
   }, []);
 
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+  };
+
   const fetchUser = async () => {
-    try {
-      const res = await fetch('/api/user');
-      const data = await res.json();
-      setSubscriptionTier(data.subscription_tier || 'free');
-    } catch (error) {
-      console.error('Error fetching user:', error);
-    }
+    const res = await fetch('/api/user');
+    if (!res.ok) return;
+    const data = await res.json();
+    setSubscriptionTier(data.subscription_tier || 'free');
   };
 
   const handleUpgrade = async () => {
@@ -42,12 +60,11 @@ export default function Dashboard() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        alert('Failed to create checkout session');
+        showToast('Failed to create checkout session', 'error');
+        setUpgrading(false);
       }
-    } catch (error) {
-      console.error('Error creating checkout:', error);
-      alert('Failed to create checkout session');
-    } finally {
+    } catch {
+      showToast('Failed to create checkout session', 'error');
       setUpgrading(false);
     }
   };
@@ -56,28 +73,21 @@ export default function Dashboard() {
   const atRuleLimit = isFreeTier && rules.length >= 3;
 
   const fetchRules = async () => {
-    try {
-      const res = await fetch('/api/rules');
-      const data = await res.json();
-      setRules(data.rules || []);
-    } catch (error) {
-      console.error('Error fetching rules:', error);
-    } finally {
-      setLoading(false);
-    }
+    const res = await fetch('/api/rules');
+    if (!res.ok) throw new Error('Failed to fetch rules');
+    const data = await res.json();
+    setRules(data.rules || []);
   };
 
   const fetchDatabases = async () => {
-    try {
-      const res = await fetch('/api/databases');
-      const data = await res.json();
-      setDatabases(data.databases || []);
-    } catch (error) {
-      console.error('Error fetching databases:', error);
-    }
+    const res = await fetch('/api/databases');
+    if (!res.ok) throw new Error('Failed to fetch databases');
+    const data = await res.json();
+    setDatabases(data.databases || []);
   };
 
   const createRule = async () => {
+    setCreating(true);
     try {
       const res = await fetch('/api/rules', {
         method: 'POST',
@@ -87,7 +97,7 @@ export default function Dashboard() {
 
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to create rule');
+        showToast(data.error || 'Failed to create rule', 'error');
         return;
       }
 
@@ -99,22 +109,37 @@ export default function Dashboard() {
         schedule_type: 'daily',
         schedule_value: '1',
       });
-    } catch (error) {
-      console.error('Error creating rule:', error);
-      alert('Failed to create rule');
+      showToast('Rule created successfully', 'success');
+    } catch {
+      showToast('Failed to create rule', 'error');
+    } finally {
+      setCreating(false);
     }
   };
 
   const toggleRule = async (ruleId: string, isActive: boolean) => {
+    // Optimistic update
+    setRules((prev) =>
+      prev.map((r) => (r.id === ruleId ? { ...r, is_active: !isActive } : r))
+    );
     try {
-      await fetch(`/api/rules/${ruleId}`, {
+      const res = await fetch(`/api/rules/${ruleId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !isActive }),
       });
-      await fetchRules();
-    } catch (error) {
-      console.error('Error toggling rule:', error);
+      if (!res.ok) {
+        // Revert on failure
+        setRules((prev) =>
+          prev.map((r) => (r.id === ruleId ? { ...r, is_active: isActive } : r))
+        );
+        showToast('Failed to update rule', 'error');
+      }
+    } catch {
+      setRules((prev) =>
+        prev.map((r) => (r.id === ruleId ? { ...r, is_active: isActive } : r))
+      );
+      showToast('Failed to update rule', 'error');
     }
   };
 
@@ -122,14 +147,23 @@ export default function Dashboard() {
     if (!confirm('Are you sure you want to delete this rule?')) return;
 
     try {
-      await fetch(`/api/rules/${ruleId}`, { method: 'DELETE' });
-      await fetchRules();
-    } catch (error) {
-      console.error('Error deleting rule:', error);
+      const res = await fetch(`/api/rules/${ruleId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        showToast('Failed to delete rule', 'error');
+        return;
+      }
+      setRules((prev) => prev.filter((r) => r.id !== ruleId));
+      showToast('Rule deleted', 'success');
+    } catch {
+      showToast('Failed to delete rule', 'error');
     }
   };
 
-  if (loading) {
+  if (loading && !error) {
+    Promise.all([fetchRules(), fetchDatabases(), fetchUser()])
+      .catch(() => setError('Failed to load dashboard data'))
+      .finally(() => setLoading(false));
+
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-xl">Loading...</div>
@@ -137,8 +171,35 @@ export default function Dashboard() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onDismiss={() => setToast(null)}
+        />
+      )}
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4">
@@ -158,7 +219,7 @@ export default function Dashboard() {
                   disabled={upgrading}
                   className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
                 >
-                  {upgrading ? 'Loading...' : '⚡ Upgrade to Pro'}
+                  {upgrading ? 'Loading...' : 'Upgrade to Pro'}
                 </button>
               )}
               <button
@@ -185,7 +246,7 @@ export default function Dashboard() {
               disabled={upgrading}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap"
             >
-              {upgrading ? 'Loading...' : '⚡ Upgrade to Pro'}
+              {upgrading ? 'Loading...' : 'Upgrade to Pro'}
             </button>
           </div>
         )}
@@ -256,7 +317,7 @@ export default function Dashboard() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
             <h2 className="text-2xl font-bold mb-6">Create Recurring Rule</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Database</label>
@@ -288,7 +349,7 @@ export default function Dashboard() {
                   onChange={(e) =>
                     setNewRule({
                       ...newRule,
-                      schedule_type: e.target.value as any,
+                      schedule_type: e.target.value as 'daily' | 'weekly' | 'monthly' | 'custom',
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -323,14 +384,15 @@ export default function Dashboard() {
             <div className="flex space-x-3 mt-6">
               <button
                 onClick={createRule}
-                disabled={!newRule.database_id || !newRule.schedule_value}
+                disabled={!newRule.database_id || !newRule.schedule_value || creating}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Rule
+                {creating ? 'Creating...' : 'Create Rule'}
               </button>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                disabled={creating}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
               >
                 Cancel
               </button>

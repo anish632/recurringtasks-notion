@@ -3,10 +3,18 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 
 function verifySignature(rawBody: string, signature: string): boolean {
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET!;
+  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
+  if (!secret || !signature) return false;
+
   const hmac = crypto.createHmac('sha256', secret);
   const digest = hmac.update(rawBody).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+
+  // timingSafeEqual throws if lengths differ, so check first
+  const sigBuf = Buffer.from(signature);
+  const digestBuf = Buffer.from(digest);
+  if (sigBuf.length !== digestBuf.length) return false;
+
+  return crypto.timingSafeEqual(sigBuf, digestBuf);
 }
 
 export async function POST(request: NextRequest) {
@@ -18,9 +26,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const payload = JSON.parse(rawBody);
-    const eventName = payload.meta.event_name;
-    const customData = payload.meta.custom_data;
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
+
+    const eventName = payload?.meta?.event_name;
+    const customData = payload?.meta?.custom_data;
     const userId = customData?.user_id;
 
     if (!userId) {
@@ -31,8 +45,8 @@ export async function POST(request: NextRequest) {
     switch (eventName) {
       case 'subscription_created':
       case 'subscription_updated': {
-        const status = payload.data.attributes.status;
-        // active, on_trial, past_due → pro; cancelled, expired, unpaid → free
+        const status = payload?.data?.attributes?.status;
+        // active, on_trial, past_due -> pro; cancelled, expired, unpaid -> free
         const tier = ['active', 'on_trial', 'past_due'].includes(status) ? 'pro' : 'free';
         await db.updateUser(userId, { subscription_tier: tier });
         break;

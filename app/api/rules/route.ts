@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { calculateNextRun } from '@/lib/scheduler';
+import { calculateNextRun, validateSchedule } from '@/lib/scheduler';
 import { getDatabase } from '@/lib/notion';
 
 export async function GET(request: NextRequest) {
@@ -55,6 +55,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate schedule
+    const scheduleError = validateSchedule(schedule_type, schedule_value);
+    if (scheduleError) {
+      return NextResponse.json({ error: scheduleError }, { status: 400 });
+    }
+
     // Validate the database is accessible before saving
     try {
       await getDatabase(user.notion_access_token, database_id);
@@ -72,10 +78,7 @@ export async function POST(request: NextRequest) {
       template_page_id,
       schedule_type,
       schedule_value,
-      next_run: calculateNextRun({
-        schedule_type,
-        schedule_value,
-      } as any),
+      next_run: calculateNextRun({ schedule_type, schedule_value }),
       is_active: true,
     });
 

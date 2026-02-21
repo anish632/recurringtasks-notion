@@ -7,31 +7,26 @@ export async function POST(request: NextRequest) {
   try {
     // Verify cron secret to prevent unauthorized access
     const authHeader = request.headers.get('authorization');
-    const expectedSecret = process.env.CRON_SECRET || 'dev-secret';
-    
-    if (authHeader !== `Bearer ${expectedSecret}`) {
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get all active rules that are due to run
-    const dueRules = await db.getActiveRules();
+    // Get all active rules with user tokens in a single query
+    const dueRules = await db.getActiveRulesWithUsers();
 
     console.log(`Found ${dueRules.length} rules to execute`);
 
     const results = await Promise.allSettled(
       dueRules.map(async (rule) => {
         try {
-          const user = await db.getUserById(rule.user_id);
-          if (!user) {
-            throw new Error('User not found');
-          }
-
           let pageId: string;
 
           if (rule.template_page_id) {
             // Duplicate the template page
             pageId = await duplicatePageToDatabase(
-              user.notion_access_token,
+              rule.notion_access_token,
               rule.template_page_id,
               rule.database_id
             );
@@ -54,7 +49,7 @@ export async function POST(request: NextRequest) {
             };
 
             pageId = await createPage(
-              user.notion_access_token,
+              rule.notion_access_token,
               rule.database_id,
               properties
             );
