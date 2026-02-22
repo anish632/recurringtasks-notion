@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
               rule.database_id
             );
           } else {
-            // Create a basic page with title and default status
+            // Create a basic page with title only (other properties use DB defaults)
             const now = new Date();
             const properties: Record<string, any> = {
               Name: {
@@ -42,9 +42,6 @@ export async function POST(request: NextRequest) {
                     },
                   },
                 ],
-              },
-              Status: {
-                select: { name: 'To Do' },
               },
             };
 
