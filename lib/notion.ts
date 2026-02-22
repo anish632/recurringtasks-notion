@@ -16,10 +16,13 @@ export async function getUserDatabases(accessToken: string): Promise<NotionDatab
     return response.results
       .filter((item: any) => item.object === 'database' || item.object === 'data_source')
       .map((db: any) => ({
-        id: db.id,
+        // data_source objects wrap the real database; use parent.database_id as the actual ID
+        id: (db.object === 'data_source' && db.parent?.database_id) ? db.parent.database_id : db.id,
         name: db.title?.[0]?.plain_text || db.name || 'Untitled',
         url: db.url,
-      }));
+      }))
+      // Deduplicate by id (a database and its data_source may both appear)
+      .filter((db: any, i: number, arr: any[]) => arr.findIndex((d: any) => d.id === db.id) === i);
   } catch (error) {
     console.error('Error fetching databases:', error);
     throw error;
