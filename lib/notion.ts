@@ -10,7 +10,6 @@ export async function getUserDatabases(accessToken: string): Promise<NotionDatab
   
   try {
     const response = await notion.search({
-      filter: { property: 'object', value: 'database' } as any,
       page_size: 100,
     });
 
