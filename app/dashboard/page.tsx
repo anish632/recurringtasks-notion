@@ -211,7 +211,8 @@ export default function Dashboard() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold">RecurringTasks Dashboard</h1>
+              <a href="/" className="text-2xl font-bold hover:text-blue-600 transition">RecurringTasks</a>
+              <span className="text-2xl font-bold text-gray-400 mx-1">Dashboard</span>
               <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
                 isFreeTier ? 'bg-gray-200 text-gray-700' : 'bg-purple-100 text-purple-700'
               }`}>
