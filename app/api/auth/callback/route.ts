@@ -48,8 +48,13 @@ export async function GET(request: NextRequest) {
       subscription_tier: 'free',
     });
 
+    // Set cookie on a 200 response, then redirect via JS.
+    // NextResponse.redirect() + Set-Cookie is unreliable in some Next.js versions.
     const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
-    const response = NextResponse.redirect(dashboardUrl, 302);
+    const response = new NextResponse(
+      `<html><head><script>window.location.href="${dashboardUrl}";</script></head><body>Redirecting...</body></html>`,
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    );
     response.cookies.set('user_id', user.id, {
       httpOnly: true,
       secure: true,
