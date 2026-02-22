@@ -48,9 +48,16 @@ export async function GET(request: NextRequest) {
       subscription_tier: 'free',
     });
 
-    // In a real app, you'd set up session management here
-    // For now, we'll redirect with the user ID
-    const response = NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/dashboard`);
+    // Return an HTML page that sets the cookie via meta-refresh redirect
+    // This ensures the cookie is set on a 200 response (not a 3xx redirect),
+    // which is more reliable across browsers.
+    const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
+    const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${dashboardUrl}"></head><body>Redirecting...</body></html>`;
+    
+    const response = new NextResponse(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html' },
+    });
     response.cookies.set('user_id', user.id, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
