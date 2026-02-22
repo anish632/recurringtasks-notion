@@ -14,10 +14,10 @@ export async function getUserDatabases(accessToken: string): Promise<NotionDatab
     });
 
     return response.results
-      .filter((item: any) => item.object === 'database')
+      .filter((item: any) => item.object === 'database' || item.object === 'data_source')
       .map((db: any) => ({
         id: db.id,
-        name: db.title?.[0]?.plain_text || 'Untitled',
+        name: db.title?.[0]?.plain_text || db.name || 'Untitled',
         url: db.url,
       }));
   } catch (error) {
