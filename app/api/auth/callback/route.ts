@@ -48,21 +48,14 @@ export async function GET(request: NextRequest) {
       subscription_tier: 'free',
     });
 
-    // Return an HTML page that sets the cookie via meta-refresh redirect
-    // This ensures the cookie is set on a 200 response (not a 3xx redirect),
-    // which is more reliable across browsers.
     const dashboardUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`;
-    const html = `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${dashboardUrl}"></head><body>Redirecting...</body></html>`;
-    
-    const response = new NextResponse(html, {
-      status: 200,
-      headers: { 'Content-Type': 'text/html' },
-    });
+    const response = NextResponse.redirect(dashboardUrl, 302);
     response.cookies.set('user_id', user.id, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: '/',
     });
 
     return response;
