@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Rounded square background -->
+  <rect x="0" y="0" width="512" height="512" rx="96" ry="96" fill="#4F46E5"/>
+  
+  <!-- Circular arrow (recurring symbol) -->
+  <g transform="translate(256, 250)">
+    <!-- Arc path -->
+    <path d="M 0,-120 A 120,120 0 1,1 -104,-60" 
+          fill="none" stroke="white" stroke-width="32" stroke-linecap="round"/>
+    <!-- Arrow head -->
+    <polygon points="-134,-82 -96,-22 -74,-82" fill="white"/>
+  </g>
+  
+  <!-- Checkmark in center -->
+  <g transform="translate(256, 262)">
+    <polyline points="-32,0 -10,22 32,-22" 
+              fill="none" stroke="white" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
