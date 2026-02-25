@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   notion_workspace_name TEXT NOT NULL,
   email TEXT,
   subscription_tier TEXT NOT NULL DEFAULT 'free' CHECK (subscription_tier IN ('free', 'pro', 'team')),
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

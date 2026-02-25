@@ -9,6 +9,7 @@ const pool = new Pool({
 const ALLOWED_USER_FIELDS = new Set([
   'notion_access_token', 'notion_bot_id', 'notion_workspace_id',
   'notion_workspace_name', 'email', 'subscription_tier',
+  'stripe_customer_id', 'stripe_subscription_id',
 ]);
 
 const ALLOWED_RULE_FIELDS = new Set([

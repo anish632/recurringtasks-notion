@@ -1,68 +1,119 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { db } from '@/lib/db';
+import Stripe from 'stripe';
 
-function verifySignature(rawBody: string, signature: string): boolean {
-  const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
-
-  const hmac = crypto.createHmac('sha256', secret);
-  const digest = hmac.update(rawBody).digest('hex');
-
-  // timingSafeEqual throws if lengths differ, so check first
-  const sigBuf = Buffer.from(signature);
-  const digestBuf = Buffer.from(digest);
-  if (sigBuf.length !== digestBuf.length) return false;
-
-  return crypto.timingSafeEqual(sigBuf, digestBuf);
-}
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-12-18.acacia',
+});
 
 export async function POST(request: NextRequest) {
+  const body = await request.text();
+  const signature = request.headers.get('stripe-signature');
+
+  if (!signature) {
+    return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+  }
+
+  let event: Stripe.Event;
+
   try {
-    const rawBody = await request.text();
-    const signature = request.headers.get('x-signature') || '';
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    );
+  } catch (err: any) {
+    console.error('Webhook signature verification failed:', err.message);
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
+  }
 
-    if (!verifySignature(rawBody, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-    }
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const userId = session.metadata?.user_id;
 
-    let payload: any;
-    try {
-      payload = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-    }
+        if (!userId) {
+          console.error('No user_id in checkout session metadata');
+          break;
+        }
 
-    const eventName = payload?.meta?.event_name;
-    const customData = payload?.meta?.custom_data;
-    const userId = customData?.user_id;
-
-    if (!userId) {
-      console.error('No user_id in webhook custom data');
-      return NextResponse.json({ error: 'Missing user_id' }, { status: 400 });
-    }
-
-    switch (eventName) {
-      case 'subscription_created':
-      case 'subscription_updated': {
-        const status = payload?.data?.attributes?.status;
-        // active, on_trial, past_due -> pro; cancelled, expired, unpaid -> free
-        const tier = ['active', 'on_trial', 'past_due'].includes(status) ? 'pro' : 'free';
-        await db.updateUser(userId, { subscription_tier: tier });
+        // Update user with subscription ID
+        if (session.subscription) {
+          await db.updateUser(userId, {
+            stripe_subscription_id: session.subscription as string,
+            subscription_tier: 'pro',
+          });
+        }
         break;
       }
-      case 'subscription_cancelled':
-      case 'subscription_expired': {
-        await db.updateUser(userId, { subscription_tier: 'free' });
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+
+        // Find user by customer ID
+        const { rows } = await db['pool'].query(
+          'SELECT id FROM users WHERE stripe_customer_id = $1',
+          [customerId]
+        );
+
+        if (rows.length === 0) {
+          console.error('No user found for customer:', customerId);
+          break;
+        }
+
+        const userId = rows[0].id;
+        
+        // Update subscription status
+        const tier = ['active', 'trialing'].includes(subscription.status) ? 'pro' : 'free';
+        await db.updateUser(userId, {
+          stripe_subscription_id: subscription.id,
+          subscription_tier: tier,
+        });
         break;
       }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object as Stripe.Subscription;
+        const customerId = subscription.customer as string;
+
+        // Find user by customer ID
+        const { rows } = await db['pool'].query(
+          'SELECT id FROM users WHERE stripe_customer_id = $1',
+          [customerId]
+        );
+
+        if (rows.length === 0) {
+          console.error('No user found for customer:', customerId);
+          break;
+        }
+
+        const userId = rows[0].id;
+        
+        // Downgrade to free
+        await db.updateUser(userId, {
+          subscription_tier: 'free',
+          stripe_subscription_id: null,
+        });
+        break;
+      }
+
       default:
-        console.log('Unhandled webhook event:', eventName);
+        console.log('Unhandled event type:', event.type);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ received: true });
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('Webhook processing error:', error);
     return NextResponse.json({ error: 'Webhook processing failed' }, { status: 500 });
   }
 }
+
+// Disable body parsing for webhook
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};

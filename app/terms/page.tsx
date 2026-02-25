@@ -31,7 +31,7 @@ export default function Terms() {
               <li><strong>Free plan:</strong> Up to 3 recurring rules, 1 workspace.</li>
               <li><strong>Pro plan ($12/month):</strong> Unlimited rules, multiple workspaces, template support, custom cron schedules.</li>
             </ul>
-            <p className="mt-2">Paid subscriptions are processed through Lemon Squeezy. By subscribing, you also agree to <a href="https://www.lemonsqueezy.com/terms" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Lemon Squeezy&apos;s Terms of Service</a>.</p>
+            <p className="mt-2">Paid subscriptions are processed through Stripe. By subscribing, you also agree to <a href="https://stripe.com/legal/consumer" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">Stripe&apos;s Terms of Service</a>.</p>
           </section>
 
           <section>

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2024-12-18.acacia',
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,51 +18,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const res = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.LEMON_SQUEEZY_API_KEY}`,
-        'Content-Type': 'application/vnd.api+json',
-        'Accept': 'application/vnd.api+json',
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'checkouts',
-          attributes: {
-            checkout_data: {
-              custom: {
-                user_id: userId,
-              },
-            },
-          },
-          relationships: {
-            store: {
-              data: {
-                type: 'stores',
-                id: process.env.LEMON_SQUEEZY_STORE_ID,
-              },
-            },
-            variant: {
-              data: {
-                type: 'variants',
-                id: process.env.LEMON_SQUEEZY_VARIANT_ID,
-              },
-            },
-          },
+    // Get or create Stripe customer
+    let customerId = user.stripe_customer_id;
+    
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: user.email || undefined,
+        metadata: {
+          user_id: userId,
+          notion_workspace_id: user.notion_workspace_id,
         },
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      console.error('Lemon Squeezy error:', err);
-      return NextResponse.json({ error: 'Failed to create checkout' }, { status: 500 });
+      });
+      customerId = customer.id;
+      
+      // Save customer ID to database
+      await db.updateUser(userId, { stripe_customer_id: customerId });
     }
 
-    const data = await res.json();
-    const checkoutUrl = data.data.attributes.url;
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price: process.env.RECURRINGTASKS_PRICE_ID,
+          quantity: 1,
+        },
+      ],
+      mode: 'subscription',
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://recurringtasks-notion.vercel.app'}/dashboard?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://recurringtasks-notion.vercel.app'}/dashboard?canceled=true`,
+      metadata: {
+        user_id: userId,
+      },
+    });
 
-    return NextResponse.json({ url: checkoutUrl });
+    return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('Checkout error:', error);
     return NextResponse.json({ error: 'Failed to create checkout' }, { status: 500 });

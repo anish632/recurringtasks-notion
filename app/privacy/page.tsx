@@ -27,7 +27,7 @@ export default function Privacy() {
             <ul className="list-disc pl-6 space-y-1">
               <li>To authenticate and connect your Notion workspace.</li>
               <li>To create recurring task pages in your databases based on rules you configure.</li>
-              <li>To manage your subscription and billing via Lemon Squeezy.</li>
+              <li>To manage your subscription and billing via Stripe.</li>
               <li>To improve and maintain our service.</li>
             </ul>
           </section>
@@ -41,7 +41,7 @@ export default function Privacy() {
             <h2 className="text-xl font-semibold mb-3">5. Third-Party Services</h2>
             <ul className="list-disc pl-6 space-y-1">
               <li><strong>Notion API:</strong> To access and create pages in your databases.</li>
-              <li><strong>Lemon Squeezy:</strong> To process payments for premium subscriptions.</li>
+              <li><strong>Stripe:</strong> To process payments for premium subscriptions.</li>
               <li><strong>Vercel:</strong> To host and run the application.</li>
             </ul>
           </section>
