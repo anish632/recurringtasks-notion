@@ -7,6 +7,8 @@ export interface User {
   email?: string;
   created_at: Date;
   subscription_tier: 'free' | 'pro' | 'team';
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
 }
 
 export interface RecurringRule {

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
+let _stripe: Stripe;
+function getStripe() {
+  if (!_stripe) _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-01-28.clover' });
+  return _stripe;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +24,7 @@ export async function POST(request: NextRequest) {
     let customerId = user.stripe_customer_id;
     
     if (!customerId) {
-      const customer = await stripe.customers.create({
+      const customer = await getStripe().customers.create({
         email: user.email || undefined,
         metadata: {
           user_id: userId,
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create checkout session
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [

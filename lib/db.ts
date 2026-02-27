@@ -45,6 +45,11 @@ export const db = {
     return rows[0] || null;
   },
 
+  async getUserByStripeCustomerId(customerId: string): Promise<User | null> {
+    const { rows } = await pool.query('SELECT * FROM users WHERE stripe_customer_id = $1', [customerId]);
+    return rows[0] || null;
+  },
+
   async updateUser(id: string, updates: Partial<User>): Promise<User | null> {
     const setClauses: string[] = [];
     const values: any[] = [];

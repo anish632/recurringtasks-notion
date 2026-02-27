@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
+let _stripe: Stripe;
+function getStripe() {
+  if (!_stripe) _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-01-28.clover' });
+  return _stripe;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create customer portal session
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: user.stripe_customer_id,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://recurringtasks-notion.vercel.app'}/dashboard`,
     });

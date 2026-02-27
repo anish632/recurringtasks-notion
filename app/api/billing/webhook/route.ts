@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
-});
+let _stripe: Stripe;
+function getStripe() {
+  if (!_stripe) _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-01-28.clover' });
+  return _stripe;
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -17,7 +19,7 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
@@ -53,22 +55,14 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
-        // Find user by customer ID
-        const { rows } = await db['pool'].query(
-          'SELECT id FROM users WHERE stripe_customer_id = $1',
-          [customerId]
-        );
-
-        if (rows.length === 0) {
+        const user = await db.getUserByStripeCustomerId(customerId);
+        if (!user) {
           console.error('No user found for customer:', customerId);
           break;
         }
 
-        const userId = rows[0].id;
-        
-        // Update subscription status
         const tier = ['active', 'trialing'].includes(subscription.status) ? 'pro' : 'free';
-        await db.updateUser(userId, {
+        await db.updateUser(user.id, {
           stripe_subscription_id: subscription.id,
           subscription_tier: tier,
         });
@@ -79,23 +73,15 @@ export async function POST(request: NextRequest) {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = subscription.customer as string;
 
-        // Find user by customer ID
-        const { rows } = await db['pool'].query(
-          'SELECT id FROM users WHERE stripe_customer_id = $1',
-          [customerId]
-        );
-
-        if (rows.length === 0) {
+        const user = await db.getUserByStripeCustomerId(customerId);
+        if (!user) {
           console.error('No user found for customer:', customerId);
           break;
         }
 
-        const userId = rows[0].id;
-        
-        // Downgrade to free
-        await db.updateUser(userId, {
+        await db.updateUser(user.id, {
           subscription_tier: 'free',
-          stripe_subscription_id: null,
+          stripe_subscription_id: undefined,
         });
         break;
       }
