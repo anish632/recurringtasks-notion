@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { RecurringRule, NotionDatabase } from '@/lib/types';
 import { generateScheduleDescription } from '@/lib/scheduler';
 
@@ -11,8 +12,8 @@ function Toast({ message, type, onDismiss }: { message: string; type: 'success' 
   }, [onDismiss]);
 
   return (
-    <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-white transition-opacity ${
-      type === 'success' ? 'bg-green-600' : 'bg-red-600'
+    <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-white text-sm font-medium ${
+      type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
     }`}>
       {message}
     </div>
@@ -128,7 +129,6 @@ export default function Dashboard() {
   };
 
   const toggleRule = async (ruleId: string, isActive: boolean) => {
-    // Optimistic update
     setRules((prev) =>
       prev.map((r) => (r.id === ruleId ? { ...r, is_active: !isActive } : r))
     );
@@ -139,7 +139,6 @@ export default function Dashboard() {
         body: JSON.stringify({ is_active: !isActive }),
       });
       if (!res.ok) {
-        // Revert on failure
         setRules((prev) =>
           prev.map((r) => (r.id === ruleId ? { ...r, is_active: isActive } : r))
         );
@@ -171,25 +170,32 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-gray-200 border-t-gray-600 rounded-full animate-spin" />
+          <span className="text-sm text-gray-400">Loading dashboard...</span>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xl text-red-600 mb-4">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
+        <div className="text-center max-w-sm">
+          <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-red-500 text-xl">!</span>
+          </div>
+          <p className="text-gray-900 font-medium mb-1">Something went wrong</p>
+          <p className="text-sm text-gray-500 mb-6">{error}</p>
           <button
             onClick={() => {
               setError(null);
               setLoading(true);
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
           >
-            Retry
+            Try again
           </button>
         </div>
       </div>
@@ -197,7 +203,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50/50">
       {toast && (
         <Toast
           message={toast.message}
@@ -207,51 +213,53 @@ export default function Dashboard() {
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <a href="/" className="text-2xl font-bold hover:text-blue-600 transition">RecurringTasks</a>
-              <span className="text-2xl font-bold text-gray-400 mx-1">Dashboard</span>
-              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
-                isFreeTier ? 'bg-gray-200 text-gray-700' : 'bg-purple-100 text-purple-700'
-              }`}>
-                {isFreeTier ? 'Free' : 'Pro'}
-              </span>
-            </div>
-            <div className="flex items-center gap-3">
-              {isFreeTier && (
-                <button
-                  onClick={handleUpgrade}
-                  disabled={upgrading}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
-                >
-                  {upgrading ? 'Loading...' : 'Upgrade to Pro'}
-                </button>
-              )}
+      <header className="bg-white border-b border-gray-200/80">
+        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <a href="/" className="flex items-center gap-2">
+              <Image src="/logo.png" alt="RecurringTasks" width={24} height={24} className="rounded" />
+              <span className="font-semibold text-sm tracking-tight hidden sm:block">RecurringTasks</span>
+            </a>
+            <span className="text-gray-200">|</span>
+            <span className="text-sm text-gray-500">Dashboard</span>
+            <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${
+              isFreeTier ? 'bg-gray-100 text-gray-500' : 'bg-violet-100 text-violet-700'
+            }`}>
+              {isFreeTier ? 'Free' : 'Pro'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isFreeTier && (
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                onClick={handleUpgrade}
+                disabled={upgrading}
+                className="px-3 py-1.5 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition disabled:opacity-50"
               >
-                + New Rule
+                {upgrading ? 'Loading...' : 'Upgrade'}
               </button>
-            </div>
+            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
+            >
+              + New Rule
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
+      {/* Main */}
+      <main className="max-w-5xl mx-auto px-6 py-8">
         {atRuleLimit && (
-          <div className="mb-6 p-4 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
+          <div className="mb-6 p-4 bg-violet-50 border border-violet-100 rounded-xl flex items-center justify-between gap-4">
             <div>
-              <p className="font-semibold text-purple-900">You&apos;ve reached the free plan limit (3 rules)</p>
-              <p className="text-sm text-purple-700">Upgrade to Pro for unlimited recurring rules.</p>
+              <p className="font-semibold text-sm text-violet-900">Free plan limit reached</p>
+              <p className="text-sm text-violet-600">Upgrade to Pro for unlimited recurring rules.</p>
             </div>
             <button
               onClick={handleUpgrade}
               disabled={upgrading}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap"
+              className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition disabled:opacity-50 whitespace-nowrap"
             >
               {upgrading ? 'Loading...' : 'Upgrade to Pro'}
             </button>
@@ -259,57 +267,63 @@ export default function Dashboard() {
         )}
 
         {rules.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">📋</div>
-            <h2 className="text-2xl font-semibold mb-2">No recurring rules yet</h2>
-            <p className="text-gray-600 mb-6">
-              Create your first rule to start automating tasks in Notion
+          <div className="text-center py-24">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <span className="text-3xl">📋</span>
+            </div>
+            <h2 className="text-xl font-semibold mb-2 tracking-tight">No rules yet</h2>
+            <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">
+              Create your first recurring rule to start automating tasks in Notion.
             </p>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition"
             >
-              Create Your First Rule
+              Create your first rule
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {rules.map((rule) => (
               <div
                 key={rule.id}
-                className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
+                className="bg-white p-5 rounded-xl border border-gray-200/80 hover:border-gray-300 transition-colors"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold mb-1">{rule.database_name}</h3>
-                    <p className="text-gray-600 mb-2">
-                      {generateScheduleDescription(rule)}
-                    </p>
-                    <div className="text-sm text-gray-500">
-                      Next run: {new Date(rule.next_run).toLocaleString()}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <h3 className="font-semibold text-sm truncate">{rule.database_name}</h3>
+                      <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                        rule.is_active ? 'bg-emerald-400' : 'bg-gray-300'
+                      }`} />
                     </div>
-                    {rule.last_run && (
-                      <div className="text-sm text-gray-500">
-                        Last run: {new Date(rule.last_run).toLocaleString()}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-3 text-xs text-gray-400">
+                      <span className="font-medium text-gray-500">{generateScheduleDescription(rule)}</span>
+                      <span>Next: {new Date(rule.next_run).toLocaleDateString()}</span>
+                      {rule.last_run && (
+                        <span>Last: {new Date(rule.last_run).toLocaleDateString()}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => toggleRule(rule.id, rule.is_active)}
-                      className={`px-3 py-1 rounded ${
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
                         rule.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-700'
+                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                       }`}
                     >
                       {rule.is_active ? 'Active' : 'Paused'}
                     </button>
                     <button
                       onClick={() => deleteRule(rule.id)}
-                      className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
+                      className="p-1.5 text-gray-300 hover:text-red-500 transition"
+                      title="Delete rule"
                     >
-                      Delete
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -321,13 +335,13 @@ export default function Dashboard() {
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-            <h2 className="text-2xl font-bold mb-6">Create Recurring Rule</h2>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h2 className="text-lg font-semibold tracking-tight mb-5">New recurring rule</h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Database</label>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Database</label>
                 <select
                   value={newRule.database_id}
                   onChange={(e) => {
@@ -338,7 +352,7 @@ export default function Dashboard() {
                       database_name: db?.name || '',
                     });
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 >
                   <option value="">Select a database</option>
                   {databases.map((db) => (
@@ -350,7 +364,7 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Schedule Type</label>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">Frequency</label>
                 <select
                   value={newRule.schedule_type}
                   onChange={(e) =>
@@ -359,7 +373,7 @@ export default function Dashboard() {
                       schedule_type: e.target.value as 'daily' | 'weekly' | 'monthly' | 'custom',
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 >
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
@@ -369,8 +383,8 @@ export default function Dashboard() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  {newRule.schedule_type === 'custom' ? 'Cron Expression' : 'Interval'}
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">
+                  {newRule.schedule_type === 'custom' ? 'Cron expression' : 'Interval'}
                 </label>
                 <input
                   type="text"
@@ -380,26 +394,26 @@ export default function Dashboard() {
                   }
                   placeholder={
                     newRule.schedule_type === 'custom'
-                      ? '0 9 * * 1 (Every Monday at 9am)'
+                      ? '0 9 * * 1 (Mon at 9am)'
                       : '1'
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 />
               </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
+            <div className="flex gap-2.5 mt-6">
               <button
                 onClick={createRule}
                 disabled={!newRule.database_id || !newRule.schedule_value || creating}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {creating ? 'Creating...' : 'Create Rule'}
+                {creating ? 'Creating...' : 'Create rule'}
               </button>
               <button
                 onClick={() => setShowCreateModal(false)}
                 disabled={creating}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition disabled:opacity-50"
+                className="px-4 py-2.5 bg-gray-100 text-gray-600 text-sm font-medium rounded-xl hover:bg-gray-200 transition disabled:opacity-50"
               >
                 Cancel
               </button>
