@@ -1,6 +1,6 @@
 # RecurringTasks for Notion
 
-> Automate recurring tasks in Notion — the #1 most requested feature
+> Automate recurring tasks in Notion — a top community feature request
 
 RecurringTasks is a Notion integration that automatically creates recurring task pages in your databases on a schedule. Set it once, let it run forever.
 

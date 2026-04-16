@@ -2,7 +2,7 @@
 
 ## Overview
 
-**RecurringTasks** is a fully functional Notion integration that solves the #1 most requested Notion feature: recurring tasks. Users can set up automated rules to create task pages in any Notion database on a schedule.
+**RecurringTasks** is a fully functional Notion integration that solves a top Notion community feature request: recurring tasks. Users can set up automated rules to create task pages in any Notion database on a schedule.
 
 **Repository**: https://github.com/anish632/recurringtasks-notion
 
